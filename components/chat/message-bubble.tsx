@@ -387,14 +387,14 @@ function HtmlPreviewCard({
 
 function mapMarkdownOutsideCode(text: string, mapper: (segment: string) => string): string {
     const parts = text.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
-    return parts.map(part => part.startsWith("`") ? part : mapper(part)).join("");
+    return parts.map(part => part.startsWith("\`") ? part : mapper(part)).join("");
 }
 
 /**
  * 浏览器无法直接打开的支付类 scheme（微信 Native 扫码付、支付宝等）。
  * 命中后在气泡里渲染 ScanPayCard（二维码 + 在钱包中打开 + 复制），并从正文里剥掉这串。
  */
-const PAY_SCHEME_RE = /(?:weixin|wechat|alipays|alipay):\/\/[^\s<>"'`)\]，。！？、；]+/gi;
+const PAY_SCHEME_RE = /(?:weixin|wechat|alipays|alipay):\/\/[^\s<>"'\`)\]，。！？、；]+/gi;
 
 function extractPaySchemeUrls(text: string): string[] {
     const seen = new Set<string>();
@@ -406,15 +406,15 @@ function extractPaySchemeUrls(text: string): string[] {
 }
 
 function stripPaySchemeUrls(text: string): string {
-    // 连同包裹的反引号（行内代码）一起剥掉，避免残留 ``
+    // 连同包裹的反引号（行内代码）一起剥掉，避免残留 \`\`
     return text
-        .replace(/`*\s*(?:weixin|wechat|alipays|alipay):\/\/[^\s<>"'`)\]，。！？、；]+\s*`*/gi, "")
+        .replace(/\`*\s*(?:weixin|wechat|alipays|alipay):\/\/[^\s<>"'\`)\]，。！？、；]+\s*\`*/gi, "")
         .replace(/[ \t]{2,}/g, " ");
 }
 
 /**
  * 台词包裹：渲染前把引号内的对话包进 <q> 标签，
- * 让自定义 CSS 可以用 `q { ... }` 单独给台词上样式。
+ * 让自定义 CSS 可以用 \`q { ... }\` 单独给台词上样式。
  * - 只处理代码块/行内代码之外的文本
  * - 跳过 HTML 标签内部，避免命中属性里的引号
  * - 支持中文弯引号 “…”、直角引号 「…」、英文直引号 "…"（同一行内成对才包）
@@ -427,7 +427,7 @@ function wrapQuotedDialogue(text: string): string {
             return part
                 .replace(/“([^”\n]+)”/g, "<q>“$1”</q>")
                 .replace(/「([^」\n]+)」/g, "<q>「$1」</q>")
-                .replace(/"([^"\n]+)"/g, "<q>\"$1\"</q>");
+                .replace(/"([^"\n]+)"/g, "<q>\\\"$1\\\"</q>");
         }).join(""),
     );
 }
@@ -435,16 +435,16 @@ function wrapQuotedDialogue(text: string): string {
 function linkifyBareUrls(text: string): string {
     return mapMarkdownOutsideCode(text, segment => {
         const normalized = segment.replace(
-            /https?:\/\/[^\s<>"'`]+(?:\s*[?&]\s*[^\s<>"'`]+)*/g,
+            /https?:\/\/[^\s<>"'\`]+(?:\s*[?&]\s*[^\s<>"'\`]+)*/g,
             match => match.replace(/\s+/g, ""),
         );
-        return normalized.replace(/https?:\/\/[^\s<>"'`()[\]]+/g, (url, offset, source) => {
+        return normalized.replace(/https?:\/\/[^\s<>"'\`()[\]]+/g, (url, offset, source) => {
             const prev = source[offset - 1];
-            if (prev === "[" || prev === "(" || prev === "<" || prev === "=" || prev === "\"" || prev === "'") return url;
+            if (prev === "[" || prev === "(" || prev === "<" || prev === "=" || prev === "\\\"" || prev === "'") return url;
 
             const trailing = url.match(/[),.;!?，。！？、]+$/)?.[0] || "";
             const href = trailing ? url.slice(0, -trailing.length) : url;
-            return `[${href}](${href})${trailing}`;
+            return \`[\${href}](\${href})\${trailing}\`;
         });
     });
 }
@@ -507,7 +507,7 @@ function MarkdownTextContent({
     // 支付类 scheme（微信扫码付 / 支付宝等）→ 渲染成支付卡片，从正文剥离原始串
     const payUrls = extractPaySchemeUrls(cleaned);
 
-    // Auto-detect rich HTML (with <script> + <style>) that wasn't wrapped in ```html
+    // Auto-detect rich HTML (with <script> + <style>) that wasn't wrapped in \`\`\`html
     const strippedCodeBlocks = cleaned.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, "");
     if (/^\s*</.test(strippedCodeBlocks)
         && /<script\b[\s\S]*?<\/script>/i.test(strippedCodeBlocks)
@@ -515,7 +515,7 @@ function MarkdownTextContent({
         return <HtmlPreviewCard html={cleaned} onActionSelect={onActionSelect} htmlFrameVariant={htmlFrameVariant} />;
     }
 
-    // FIRST: split out ```html blocks (before extractStyles, so HTML block styles aren't leaked)
+    // FIRST: split out \`\`\`html blocks (before extractStyles, so HTML block styles aren't leaked)
     const segments = splitChatContent(cleaned);
     const hasHtmlBlocks = segments.some(s => s.type === "html");
 
@@ -532,7 +532,7 @@ function MarkdownTextContent({
                         {mdCleaned}
                     </ReactMarkdown>
                 )}
-                {payUrls.map((u, i) => <ScanPayCard key={`pay-${i}`} url={u} />)}
+                {payUrls.map((u, i) => <ScanPayCard key={\`pay-\${i}\`} url={u} />)}
             </div>
         );
     }
@@ -542,13 +542,13 @@ function MarkdownTextContent({
         <div className="chat-markdown hide-scrollbar break-words" ref={containerRef}>
             {segments.map((seg, i) => {
                 if (seg.type === "html") {
-                    return <HtmlPreviewCard key={`html-${i}`} html={seg.content} onActionSelect={onActionSelect} htmlFrameVariant={htmlFrameVariant} />;
+                    return <HtmlPreviewCard key={\`html-\${i}\`} html={seg.content} onActionSelect={onActionSelect} htmlFrameVariant={htmlFrameVariant} />;
                 }
                 // Extract styles only from markdown segments (not from html blocks)
                 const { styles, body } = extractStyles(seg.content);
                 const mdContent = wrapQuotedDialogue(linkifyBareUrls(stripPaySchemeUrls(body.trim())));
                 return (
-                    <div key={`md-${i}`}>
+                    <div key={\`md-\${i}\`}>
                         {styles && <style dangerouslySetInnerHTML={{ __html: styles }} />}
                         {mdContent && (
                             <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeRaw]} components={MARKDOWN_COMPONENTS}>
@@ -558,7 +558,7 @@ function MarkdownTextContent({
                     </div>
                 );
             })}
-            {payUrls.map((u, i) => <ScanPayCard key={`pay-${i}`} url={u} />)}
+            {payUrls.map((u, i) => <ScanPayCard key={\`pay-\${i}\`} url={u} />)}
         </div>
     );
 }
@@ -608,7 +608,7 @@ export const BilingualTextBlock = memo(function BilingualTextBlock({
     }
 
     return (
-        <div className={`chat-bilingual-block ${className ?? ""}`.trim()}>
+        <div className={\`chat-bilingual-block \${className ?? ""}\`.trim()}>
             <div className="chat-bilingual-section">
                 {renderContent(bilingual.original, "chat-bilingual-content")}
             </div>
@@ -660,10 +660,10 @@ function RedPacketBubble({ msg, charName, userName, groupSize, onShowDetail }: {
 
     return (
         <div
-            className={`chat-red-packet-card w-[240px] rounded-xl overflow-hidden cursor-pointer ${!isDone ? "red-packet-pulse" : ""}`}
+            className={\`chat-red-packet-card w-[240px] rounded-xl overflow-hidden cursor-pointer \${!isDone ? "red-packet-pulse" : ""}\`}
             onClick={() => onShowDetail?.(msg)}
         >
-            <div className={`chat-red-packet-body p-4 flex items-center gap-3 min-h-[70px] ${bgClass}`}>
+            <div className={\`chat-red-packet-body p-4 flex items-center gap-3 min-h-[70px] \${bgClass}\`}>
                 <div className="ts-32 shrink-0">🧧</div>
                 <div className="flex-1 min-w-0">
                     <div className="text-white ts-15 font-medium">
@@ -704,23 +704,19 @@ function TransferBubble({ msg, charName, userName, onShowDetail }: {
             className="chat-transfer-card w-[240px] rounded-xl overflow-hidden cursor-pointer"
             onClick={() => onShowDetail?.(msg)}
         >
-            <div className={`chat-transfer-body p-4 flex items-center gap-3 ${bgClass}`}>
-                <div className="ts-28 shrink-0">💰</div>
-                <div className="flex-1">
-                    <div className="text-white ts-24 font-bold">¥{d?.amount?.toFixed(2)}</div>
-                    <div className="ts-13 mt-0.5 ui-text-white-85">{d?.label || "转账"}</div>
+            <div className={\`chat-transfer-body p-4 flex items-center gap-3 min-h-[70px] \${bgClass}\`}>
+                <div className="ts-32 shrink-0">💰</div>
+                <div className="flex-1 min-w-0">
+                    <div className="text-white ts-15 font-medium">
+                        {d?.amount != null ? \`¥\${d.amount.toFixed(2)}\` : "转账"}
+                    </div>
+                    <div className="ts-12 mt-1 ui-text-white-70 truncate">
+                        {isDeclined ? "已退回" : isReceived ? "已被接收" : (d?.label || "转账给您")}
+                    </div>
                 </div>
             </div>
-            {d?.recipientName && (
-                <div className={`px-4 py-1 ts-12 ui-text-white-70 ${bgClass}`}>转给 {d.recipientName}</div>
-            )}
-            <div
-                className="ui-media-footer px-4 py-2 ts-12 flex justify-between items-center"
-                {...(isDeclined ? { "data-status": "declined" } : {})}
-            >
-                <span>微信转账</span>
-                {isReceived && <span>已收款</span>}
-                {isDeclined && <span>已退回</span>}
+            <div className="ui-media-footer px-4 py-1.5 ts-11" {...(isDeclined ? { "data-status": "declined" } : {})}>
+                微信转账
             </div>
         </div>
     );
@@ -733,355 +729,269 @@ function PaymentRequestBubble({ msg, charName, userName, onShowDetail }: {
     onShowDetail?: (msg: ChatMessage) => void;
 }) {
     const d = msg.mediaData;
-    const status = d?.status;
-    const isPaid = status === "paid";
-    const isDeclined = status === "declined";
-    const requester = msg.role === "user" ? (userName || "你") : (msg.senderName || charName || "对方");
-    const amount = typeof d?.amount === "number" ? d.amount.toFixed(2) : d?.paymentRequestAmountLabel || "0.00";
-    const itemsText = d?.paymentRequestItemsText || (d?.paymentRequestItems || [])
-        .map(item => `${item.title}/${item.detail}/${item.priceLabel}/${item.quantityLabel}`)
-        .join("; ");
-    const statusText = isPaid ? "已代付" : isDeclined ? "已拒绝" : "待代付";
+    const isPaid = d?.status === "paid";
+    const isDeclined = d?.status === "declined";
+
+    const bgClass = isDeclined
+        ? "bg-declined-gradient"
+        : isPaid ? "bg-opened-gradient" : "bg-payment-req-gradient";
+
+    const labelText = typeof d?.amount === "number" && Number.isFinite(d.amount)
+        ? \`¥\${d.amount.toFixed(2)}\`
+        : (d?.paymentRequestAmountLabel ? \`¥\${d.paymentRequestAmountLabel}\` : "代付请求");
 
     return (
         <div
-            className="chat-payment-request-card w-[248px] rounded-xl overflow-hidden cursor-pointer"
+            className="chat-payment-req-card w-[240px] rounded-xl overflow-hidden cursor-pointer"
             onClick={() => onShowDetail?.(msg)}
         >
-            <div className={`chat-payment-request-body p-4 flex items-start gap-3 ${isDeclined ? "bg-declined-gradient" : isPaid ? "bg-opened-gradient" : "bg-transfer-gradient"}`}>
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white">
-                    <ReceiptText size={22} strokeWidth={2.2} />
-                </div>
+            <div className={\`chat-payment-req-body p-4 flex items-center gap-3 min-h-[70px] \${bgClass}\`}>
+                <div className="ts-32 shrink-0">🧾</div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-white ts-12 ui-text-white-85">{requester}发起代付请求</div>
-                    <div className="text-white ts-24 font-bold mt-1">¥{amount}</div>
-                    <div className="ts-12 mt-1 ui-text-white-85 line-clamp-2">{itemsText || "商品订单"}</div>
+                    <div className="text-white ts-15 font-medium">
+                        {labelText}
+                    </div>
+                    <div className="ts-12 mt-1 ui-text-white-70 truncate">
+                        {isDeclined ? "已拒绝" : isPaid ? "已代付" : (d?.label || "帮我付一下~")}
+                    </div>
                 </div>
             </div>
-            <div
-                className="ui-media-footer px-4 py-2 ts-12 flex justify-between items-center"
-                {...(isDeclined ? { "data-status": "declined" } : {})}
-            >
-                <span>代付请求</span>
-                <span>{statusText}</span>
+            <div className="ui-media-footer px-4 py-1.5 ts-11" {...(isDeclined ? { "data-status": "declined" } : {})}>
+                微信代付
             </div>
         </div>
     );
 }
 
-// ── Custom App Card ─────────────────────────────
+// ── App Card ─────────────────────────────
 
 function AppCardBubble({ msg, characterId, characterName }: { msg: ChatMessage; characterId?: string; characterName?: string }) {
     const d = msg.mediaData;
-    const appName = d?.appName || "APP";
-    const layout = normalizeAppCardLayout(d?.appCardLayout);
-    const title = layout.title || d?.appCardTitle || d?.label || appName;
-    const subtitle = layout.subtitle;
-    const body = d?.appDirectiveId
-        ? (layout.body || d?.appCardBody || "")
-        : (layout.body || d?.appCardBody || d?.appCardSummary || msg.content);
-    const toneClass = d?.appCardTone ? ` tone-${String(d.appCardTone).replace(/[^a-z0-9_-]/gi, "")}` : "";
-    const cardOpenDisabled = layout.openDisabled || (layout.actions.length > 0 && layout.actions.every(action => action.disabled));
-    const style = {
-        ...(layout.accentColor ? { "--chat-app-card-accent": layout.accentColor } : {}),
-        ...(layout.background ? { "--chat-app-card-bg": layout.background } : {}),
-    } as React.CSSProperties;
-    const openApp = () => {
-        if (cardOpenDisabled) return;
-        if (!d?.appId || typeof window === "undefined") return;
-        window.dispatchEvent(new CustomEvent("open-app", {
-            detail: {
-                appId: toCustomAppIconId(d.appId),
-                launchContext: {
-                    source: d.appDirectiveId ? "chat_directive" : "chat_card",
-                    messageId: msg.id,
-                    sessionId: msg.sessionId,
+    const title = d?.appCardTitle || d?.appName || "应用卡片";
+    const bodyText = d?.appCardBody || d?.label || "";
+    const layout = d?.appCardLayout || "row";
+    const appId = d?.appName ? toCustomAppIconId(d.appName) : undefined;
+    const appName = d?.appName || "自定义应用";
+    const coverUrl = msg.mediaUrl;
+    const coverAspectRatio = typeof d?.appCardCoverAspectRatio === "number" ? d.appCardCoverAspectRatio : undefined;
+    const hasCover = Boolean(coverUrl);
+
+    // 解析动作（打开应用 / 发送消息）
+    const action = d?.appCardAction;
+    const intent = d?.appCardIntent;
+    const handleAction = useCallback(() => {
+        if (!action) return;
+        if (action === "open_app" && intent?.app) {
+            window.dispatchEvent(new CustomEvent("open_custom_app", {
+                detail: {
+                    appName: intent.app,
+                    path: intent.path,
+                    query: intent.query,
                     characterId,
                     characterName,
-                    appId: d.appId,
-                    appName: d.appName,
-                    directiveId: d.appDirectiveId,
-                    directiveLabel: d.appDirectiveLabel,
-                    directiveArgs: d.appDirectiveArgs,
-                    directiveRaw: d.appDirectiveRaw,
-                    sceneId: d.appSceneId,
-                    sceneTag: d.appSceneTag,
-                    appTags: d.appTags,
-                    historyText: d.appHistoryText || msg.content,
-                    historyRole: d.appHistoryRole,
-                    summary: d.appCardSummary || msg.content,
-                },
-            },
-        }));
-    };
+                }
+            }));
+        } else if (action === "send_message" && intent?.message) {
+            window.dispatchEvent(new CustomEvent("send_chat_message", {
+                detail: {
+                    content: intent.message,
+                    sessionId: msg.sessionId
+                }
+            }));
+        }
+    }, [action, intent, characterId, characterName, msg.sessionId]);
 
-    if (layout.html) {
-        return (
-            <div className={`chat-app-custom-card${toneClass}`} data-disabled={cardOpenDisabled || undefined} style={style} onClick={openApp}>
-                <iframe
-                    title={title}
-                    className="chat-app-custom-card-frame"
-                    sandbox=""
-                    style={{ height: layout.height }}
-                    srcDoc={buildAppCardSrcDoc(layout.html)}
-                />
-            </div>
-        );
-    }
+    const isClickable = Boolean(action);
 
     return (
-        <div className={`chat-app-card${toneClass}`} data-disabled={cardOpenDisabled || undefined} style={style} onClick={openApp}>
-            <div className="chat-app-card-head">
-                <span className="chat-app-card-icon" aria-hidden>
-                    <Blocks size={18} strokeWidth={2} />
-                </span>
-                <span className="chat-app-card-name">{layout.appLabel || appName}</span>
-                {layout.status ? <span className="chat-app-card-status">{layout.status}</span> : null}
+        <div
+            className={\`chat-app-card chat-app-card--\${layout} \${isClickable ? "is-clickable" : ""}\`}
+            onClick={isClickable ? handleAction : undefined}
+            role={isClickable ? "button" : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+        >
+            <div className="chat-app-card-main">
+                <div className="chat-app-card-content">
+                    <div className="chat-app-card-title">{title}</div>
+                    {bodyText && <div className="chat-app-card-body">{bodyText}</div>}
+                </div>
+                {hasCover && (
+                    <div className="chat-app-card-cover-wrap">
+                        <img
+                            src={coverUrl}
+                            alt=""
+                            className="chat-app-card-cover"
+                            style={layout === "cover" && coverAspectRatio ? { aspectRatio: coverAspectRatio } : undefined}
+                            loading="lazy"
+                        />
+                    </div>
+                )}
             </div>
-            {layout.image ? <img className="chat-app-card-image" src={layout.image} alt="" /> : null}
-            <div className="chat-app-card-title">{title}</div>
-            {subtitle ? <div className="chat-app-card-subtitle">{subtitle}</div> : null}
-            {body ? <div className="chat-app-card-body">{body}</div> : null}
-            {layout.sections.length > 0 ? (
-                <div className="chat-app-card-sections">
-                    {layout.sections.map((section, index) => (
-                        <div className="chat-app-card-section" key={`${section.title || "section"}-${index}`}>
-                            {section.title ? <div className="chat-app-card-section-title">{section.title}</div> : null}
-                            {section.text ? <div className="chat-app-card-section-text">{section.text}</div> : null}
-                            {section.rows.length > 0 ? (
-                                <div className="chat-app-card-rows">
-                                    {section.rows.map((row, rowIndex) => (
-                                        <div className="chat-app-card-row" key={`${row.label}-${rowIndex}`}>
-                                            <span>{row.label}</span>
-                                            <strong>{row.value}</strong>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : null}
-                            {section.chips.length > 0 ? (
-                                <div className="chat-app-card-chips">
-                                    {section.chips.map((chip, chipIndex) => <span key={`${chip}-${chipIndex}`}>{chip}</span>)}
-                                </div>
-                            ) : null}
-                        </div>
-                    ))}
-                </div>
-            ) : null}
-            {layout.actions.length > 0 ? (
-                <div className="chat-app-card-actions">
-                    {layout.actions.map((action, index) => (
-                        <button
-                            type="button"
-                            key={`${action.label}-${index}`}
-                            data-style={action.style || "default"}
-                            disabled={action.disabled}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                if (action.disabled) return;
-                                openApp();
-                            }}
-                        >
-                            {action.label}
-                        </button>
-                    ))}
-                </div>
-            ) : null}
+            <div className="chat-app-card-footer">
+                {appId ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" className="chat-app-card-icon">
+                        <use href={\`#\${appId}\`} />
+                    </svg>
+                ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="chat-app-card-icon"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
+                )}
+                <span>{appName}</span>
+            </div>
         </div>
     );
 }
 
-type NormalizedAppCardLayout = {
-    appLabel: string;
-    title: string;
-    subtitle: string;
-    body: string;
-    html: string;
-    height: number;
-    status: string;
-    image: string;
-    accentColor: string;
-    background: string;
-    openDisabled: boolean;
-    sections: Array<{
-        title: string;
-        text: string;
-        rows: Array<{ label: string; value: string }>;
-        chips: string[];
-    }>;
-    actions: Array<{ label: string; style: string; disabled: boolean }>;
-};
-
-function cardRecord(value: unknown): Record<string, unknown> {
-    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function cardText(value: unknown, max = 240): string {
-    return String(value ?? "").replace(/\u0000/g, "").trim().slice(0, max);
-}
-
-function cardTextArray(value: unknown, maxItems = 6): string[] {
-    if (!Array.isArray(value)) return [];
-    return value.map(item => cardText(item, 80)).filter(Boolean).slice(0, maxItems);
-}
-
-function cardNumber(value: unknown, fallback: number, min: number, max: number): number {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.max(min, Math.min(max, Math.round(parsed)));
-}
-
-function stripAppCardExecutableHtml(html: string): string {
-    return html
-        .replace(/<script\b[\s\S]*?<\/script>/gi, "")
-        .replace(/\s+on[a-z]+\s*=\s*"[^"]*"/gi, "")
-        .replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, "")
-        .replace(/\s+on[a-z]+\s*=\s*[^\s>]+/gi, "");
-}
-
-function buildAppCardSrcDoc(html: string): string {
-    const safeHtml = stripAppCardExecutableHtml(html);
-    if (/<html[\s>]/i.test(safeHtml)) return safeHtml;
-    return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <style>
-    html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
-    *{box-sizing:border-box;}
-  </style>
-</head>
-<body>${safeHtml}</body>
-</html>`;
-}
-
-function normalizeAppCardLayout(value: unknown): NormalizedAppCardLayout {
-    const record = cardRecord(value);
-    const sections = Array.isArray(record.sections) ? record.sections : [];
-    const rows = Array.isArray(record.rows) ? [{ title: record.rowsTitle, rows: record.rows }] : [];
-    const normalizedSections = [...sections, ...rows].map(item => {
-        const section = cardRecord(item);
-        const sectionRows = Array.isArray(section.rows) ? section.rows : [];
-        return {
-            title: cardText(section.title, 80),
-            text: cardText(section.text ?? section.body, 500),
-            rows: sectionRows.map(row => {
-                const rowRecord = cardRecord(row);
-                return {
-                    label: cardText(rowRecord.label ?? rowRecord.name, 80),
-                    value: cardText(rowRecord.value ?? rowRecord.text, 160),
-                };
-            }).filter(row => row.label || row.value).slice(0, 8),
-            chips: cardTextArray(section.chips ?? section.tags),
-        };
-    }).filter(section => section.title || section.text || section.rows.length || section.chips.length).slice(0, 6);
-    const actions = Array.isArray(record.actions) ? record.actions : [];
-    return {
-        appLabel: cardText(record.appLabel, 60),
-        title: cardText(record.title, 100),
-        subtitle: cardText(record.subtitle, 160),
-        body: cardText(record.body ?? record.text, 1000),
-        html: cardText(record.html, 20000),
-        height: cardNumber(record.height ?? record.cardHeight, 220, 96, 520),
-        status: cardText(record.status, 60),
-        image: cardText(record.image ?? record.imageUrl, 2000),
-        accentColor: cardText(record.accentColor, 40),
-        background: cardText(record.background, 120),
-        openDisabled: record.openDisabled === true || record.clickDisabled === true || record.disabled === true || record.clickable === false,
-        sections: normalizedSections,
-        actions: actions.map(item => {
-            const action = cardRecord(item);
-            return {
-                label: cardText(action.label ?? action.text, 40),
-                style: cardText(action.style, 30),
-                disabled: action.disabled === true || action.enabled === false,
-            };
-        }).filter(action => action.label).slice(0, 3),
-    };
-}
-
-// ── Contact card（推荐联系人名片） ─────────────────────────────
-// 三态：已好友（角标，点击开会话）/ 已建档未添加（点击跳添加页）/
-// 未建档（点击进入现场生成档案流程——AI 幻觉转建档）。
-// 名字实时按推荐人同世界解析，建档后所有同名旧名片自动可添加。
+// ── Contact Card ─────────────────────────────
 
 function ContactCardBubble({ msg, characterId }: { msg: ChatMessage; characterId?: string }) {
-    const contactName = msg.mediaData?.contactCardName || msg.mediaData?.label || "";
-    const [showGenerateFlow, setShowGenerateFlow] = useState(false);
-    const [resolveTick, setResolveTick] = useState(0);
+    const d = msg.mediaData;
+    const targetId = d?.contactId;
+    const targetName = d?.contactName || "未知联系人";
+    const targetAvatar = d?.contactAvatar;
 
-    const resolved = useMemo(
-        () => (characterId && contactName ? resolveContactCard(characterId, contactName) : { character: null, isContact: false }),
-        // resolveTick：建档完成后强制重新解析
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [characterId, contactName, resolveTick],
-    );
-    const recommenderName = useMemo(
-        () => loadCharacters().find(c => c.id === characterId)?.name || "对方",
-        [characterId],
-    );
-
-    function handleClick(e: React.MouseEvent) {
-        e.stopPropagation();
-        if (!contactName) return;
-        if (resolved.character && resolved.isContact) {
-            // 已是好友：直接打开与 TA 的会话
-            const session = createOrGetSession(resolved.character.id);
-            window.dispatchEvent(new CustomEvent(CHAT_OPEN_SESSION_EVENT, { detail: { sessionId: session.id } }));
+    const handleAddContact = useCallback(async () => {
+        if (!targetId || !characterId || targetId === characterId) return;
+        const chars = await loadCharacters();
+        if (chars.some(c => c.id === targetId)) {
+            // Already added, just open session
+            const s = await createOrGetSession(targetId, "private");
+            window.dispatchEvent(new CustomEvent(CHAT_OPEN_SESSION_EVENT, { detail: s.id }));
             return;
         }
-        if (resolved.character) {
-            // 已建档未添加：跳「添加朋友」页并预载资料
-            dispatchOpenAddContact(resolved.character.id);
-            return;
-        }
-        if (characterId) setShowGenerateFlow(true);
-    }
+        // Not added, dispatch event to open contact generated flow modal
+        dispatchOpenAddContact({
+            contactId: targetId,
+            contactName: targetName,
+            contactAvatar: targetAvatar,
+            sourceCharacterId: characterId,
+        });
+    }, [targetId, characterId, targetName, targetAvatar]);
 
     return (
-        <>
-            <div className="chat-contact-card" onClick={handleClick} role="button">
-                <div className="chat-contact-card-main">
-                    <div className="chat-contact-card-avatar">
-                        {resolved.character?.avatar
-                            ? <img src={resolved.character.avatar} alt="" />
-                            : <CharAvatarFallbackInline name={contactName} />}
-                    </div>
-                    <div className="chat-contact-card-info">
-                        <div className="chat-contact-card-name">{contactName || "联系人"}</div>
-                        <div className="chat-contact-card-sub">
-                            {resolved.character
-                                ? `微信号: ${resolved.character.wechatID || resolved.character.id.slice(0, 10)}`
-                                : "点击查看"}
-                        </div>
-                    </div>
-                    {resolved.isContact && <span className="chat-contact-card-badge">已添加</span>}
+        <div className="chat-contact-card w-[240px] rounded-xl overflow-hidden cursor-pointer" onClick={handleAddContact}>
+            <div className="chat-contact-card-body p-4 pb-3 flex items-center gap-3">
+                <div className="shrink-0 w-11 h-11 rounded bg-black/5 dark:bg-white/10 overflow-hidden relative">
+                    {targetAvatar ? (
+                        <img src={targetAvatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center ts-20">👤</div>
+                    )}
+                    {/* fallback overlay icon if load fails or standard avatar styling */}
                 </div>
-                <div className="chat-contact-card-footer">个人名片</div>
+                <div className="flex-1 min-w-0">
+                    <div className="ts-15 font-medium truncate text-[var(--c-text-title)]">{targetName}</div>
+                    <div className="ts-12 text-[var(--c-text-sub)] mt-0.5 truncate">AI 角色名片</div>
+                </div>
             </div>
-            {showGenerateFlow && characterId && typeof document !== "undefined" && createPortal(
-                <ContactCardGenerateFlow
-                    recommenderCharacterId={characterId}
-                    recommenderName={recommenderName}
-                    contactName={contactName}
-                    sessionId={msg.sessionId}
-                    messageId={msg.id}
-                    onClose={() => setShowGenerateFlow(false)}
-                    onCreated={() => setResolveTick(t => t + 1)}
-                />,
-                document.body,
-            )}
-        </>
+            <div className="ui-media-footer px-4 py-1.5 ts-11 border-t border-[var(--c-border)]">
+                <span>个人名片</span>
+            </div>
+        </div>
     );
 }
 
-/** 无头像时的首字占位（名片专用，避免依赖其它气泡的 fallback 组件） */
-function CharAvatarFallbackInline({ name }: { name: string }) {
+// ── Location ─────────────────────────────
+
+function LocationBubble({ msg }: { msg: ChatMessage }) {
+    const d = msg.mediaData;
+    const address = d?.label || "位置信息";
+    const name = d?.locationName || address;
     return (
-        <div className="chat-contact-card-avatar-fallback">
-            {(name || "?").slice(0, 1)}
+        <div className="chat-location-card w-[240px] rounded-xl overflow-hidden">
+            <div className="chat-location-info p-3 pb-2 bg-[var(--c-bg-sub)]">
+                <div className="ts-15 font-medium truncate text-[var(--c-text-title)]">{name}</div>
+                {name !== address && <div className="ts-12 text-[var(--c-text-sub)] mt-0.5 truncate">{address}</div>}
+            </div>
+            <div className="chat-location-map h-[100px] bg-[#e5e5e5] dark:bg-[#2a2a2a] relative">
+                {/* Fallback map pattern */}
+                <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <path d="M0,20 L100,40 M0,60 L100,50 M40,0 L50,100 M70,0 L80,100" stroke="currentColor" strokeWidth="1" fill="none" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#ef4444" stroke="white" strokeWidth="1.5">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" fill="white" />
+                    </svg>
+                </div>
+            </div>
         </div>
     );
+}
+
+// ── Poke ─────────────────────────────
+
+function PokeBubble({ msg, charName, userName }: { msg: ChatMessage; charName?: string; userName?: string }) {
+    const sender = msg.role === "user" ? userName || "你" : charName || "对方";
+    const target = msg.role === "user" ? charName || "对方" : userName || "你";
+    return (
+        <div className="chat-sys-msg">
+            <span>{sender} 拍了拍 {target} {msg.mediaData?.label || ""}</span>
+        </div>
+    );
+}
+
+// ── Sticker & Dice ─────────────────────────────
+
+function StickerBubble({ msg, characterId }: { msg: ChatMessage; characterId?: string }) {
+    const [url, setUrl] = useState<string>("");
+    const stickerName = msg.mediaData?.label || "";
+
+    useEffect(() => {
+        if (!stickerName) return;
+        const custom = findCustomStickerByName(stickerName);
+        if (custom) {
+            resolveCustomStickerUrl(custom).then(resolved => setUrl(resolved || ""));
+            return;
+        }
+        const builtin = findStickerByName(stickerName);
+        if (builtin) {
+            setUrl(\`/stickers/\${builtin.file}\`);
+        }
+    }, [stickerName]);
+
+    if (!url) {
+        return <div className="bubble bubble-text">[{stickerName}]</div>;
+    }
+
+    return (
+        <div className="chat-sticker-wrap">
+            <img src={url} alt={stickerName} className="chat-sticker-img" loading="lazy" />
+        </div>
+    );
+}
+
+function DiceBubble({ msg }: { msg: ChatMessage }) {
+    const val = msg.mediaData?.diceValue || 1;
+    return (
+        <div className="chat-dice-wrap">
+            <div className={\`chat-dice chat-dice-\${val}\`}>
+                {/* A simple CSS dice representation */}
+                {Array.from({ length: val }).map((_, i) => <span key={i} className="dot" />)}
+            </div>
+        </div>
+    );
+}
+
+// ── Quote ─────────────────────────────
+
+function QuoteBubble({ msg, displayContent, defaultTranslationExpanded = false }: { msg: ChatMessage; displayContent?: string; defaultTranslationExpanded?: boolean }) {
+    const content = displayContent ?? msg.content;
+    const quote = msg.mediaData?.quoteText || "";
+    return (
+        <div className="bubble bubble-text chat-quote-wrap">
+            {quote && (
+                <div className="chat-quote-original">
+                    {quote}
+                </div>
+            )}
+            <TextBubble content={content} defaultTranslationExpanded={defaultTranslationExpanded} />
+        </div>
+    );
+}
+
+// ── Image ─────────────────────────────
+
+function ImageBubble({ msg, onUpdate, characterId }: { msg: ChatMessage; onUpdate?: (updated: ChatMessage) => void; characterId?: string }) {
+    return <MediaFileBubble msg={msg} onUpdate={onUpdate} characterId={characterId} />;
 }
 
 // ── Gift ─────────────────────────────
@@ -1089,14 +999,12 @@ function CharAvatarFallbackInline({ name }: { name: string }) {
 function GiftBubble({ msg }: { msg: ChatMessage }) {
     const d = msg.mediaData;
     const title = d?.giftName || d?.label || "礼物";
-    const recipient = d?.recipientName;
-    const merchant = d?.giftMerchantLabel || "购物订单";
-    const serial = (d?.shoppingGiftId || d?.giftOrderId || msg.id || "gift")
-        .replace(/[^a-z0-9]/gi, "")
-        .slice(-6)
-        .toUpperCase() || "GIFT01";
-    const sentLabel = d?.giftSentAt
-        ? new Date(d.giftSentAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+    const merchant = d?.giftMerchant || "未知来源";
+    const serial = d?.giftSerial || "00000000";
+    const recipient = d?.giftRecipientName || "";
+    const sentTime = d?.giftSentTime || msg.createdAt;
+    const sentLabel = sentTime
+        ? new Date(sentTime).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
         : "";
 
     return (
@@ -1132,7 +1040,7 @@ function GiftBubble({ msg }: { msg: ChatMessage }) {
                         {recipient && (
                             <GiftInfoCell label="收礼人" value={recipient} strong />
                         )}
-                        <GiftInfoCell label="编号" value={`G-${serial}`} />
+                        <GiftInfoCell label="编号" value={\`G-\${serial}\`} />
                         <GiftInfoCell label="来源" value={merchant} />
                         <GiftInfoCell label="礼物值" value={d?.giftPriceLabel || "心意礼物"} />
                         {sentLabel && <GiftInfoCell label="送出" value={sentLabel} />}
@@ -1154,7 +1062,7 @@ function GiftInfoCell({ label, value, strong = false }: { label: string; value: 
     return (
         <div className="chat-gift-card-cell min-w-0">
             <div className="chat-gift-card-cell-label ts-10 text-[var(--c-icon)]">{label}</div>
-            <div className={`chat-gift-card-cell-value ts-12 mt-1 leading-snug truncate ${strong ? "font-semibold text-[var(--c-text-title)]" : "text-[var(--c-text)]"}`}>
+            <div className={\`chat-gift-card-cell-value ts-12 mt-1 leading-snug truncate \${strong ? "font-semibold text-[var(--c-text-title)]" : "text-[var(--c-text)]"}\`}>
                 {value}
             </div>
         </div>
@@ -1198,22 +1106,20 @@ function GeneratedImagePromptDialog({
                 </div>
                 <div className="modal-body chat-generated-image-prompt-body" data-ui="modal-body">
                     <textarea
-                        className="ui-textarea chat-generated-image-prompt-textarea"
+                        className="ui-input chat-generated-image-prompt-input"
                         value={value}
                         onChange={e => onChange(e.target.value)}
-                        placeholder="输入图片提示词"
+                        placeholder="描述你要生成的画面..."
+                        rows={5}
                         disabled={busy}
+                        autoFocus
                     />
-                    {error && <div className="chat-generated-image-retry-error">生成失败：{error}</div>}
+                    {error && <div className="chat-generated-image-prompt-error">{error}</div>}
                 </div>
                 <div className="modal-footer" data-ui="modal-footer">
-                    <button className="ui-btn ui-btn-ghost" onClick={onCancel}>取消</button>
-                    <button
-                        className="ui-btn ui-btn-action"
-                        disabled={busy || !value.trim()}
-                        onClick={onConfirm}
-                    >
-                        生成
+                    <button className="ui-btn ui-btn-outline" onClick={onCancel} disabled={busy}>取消</button>
+                    <button className="ui-btn ui-btn-primary" onClick={onConfirm} disabled={busy}>
+                        {busy ? "生成中..." : "生成"}
                     </button>
                 </div>
             </div>
@@ -1221,487 +1127,154 @@ function GeneratedImagePromptDialog({
     );
 }
 
-function ImageBubble({
-    msg,
-    onUpdate,
-    characterId,
-}: {
-    msg: ChatMessage;
-    onUpdate?: (updated: ChatMessage) => void;
-    characterId?: string;
-}) {
-    const d = msg.mediaData;
-    const label = d?.label || "照片";
-    const rawUrl = msg.mediaUrl || "";
-    // 媒体维护压缩后 mediaUrl 是 media-store:// 引用，直接当 <img src> 会裂图，
-    // 与 MediaFileBubble 相同：先解析为 object URL 再渲染。
-    const [resolvedUrl, setResolvedUrl] = useState<string>(isMediaStoreRef(rawUrl) ? "" : rawUrl);
-    const [refExpired, setRefExpired] = useState(false);
-    const [showPromptEditor, setShowPromptEditor] = useState(false);
-    const [promptDraft, setPromptDraft] = useState("");
-    const [regenerating, setRegenerating] = useState(false);
-    const [retryError, setRetryError] = useState("");
-    const isPending = d?.imageGenerationStatus === "pending";
-    const canRetry = (!msg.mediaUrl || refExpired)
-        && !isPending
-        && Boolean(d?.label?.trim());
+// ── Media Detail Modals (Red Packet / Transfer / PaymentRequest) ─────────────────────────────
 
-    useEffect(() => {
-        if (!isMediaStoreRef(rawUrl)) {
-            setResolvedUrl(rawUrl);
-            setRefExpired(false);
-            return;
-        }
-        let revokeUrl = "";
-        loadMediaObjectUrl(rawUrl).then(objUrl => {
-            if (objUrl) { setResolvedUrl(objUrl); revokeUrl = objUrl; }
-            else setRefExpired(true);
-        });
-        return () => { if (revokeUrl) URL.revokeObjectURL(revokeUrl); };
-    }, [rawUrl]);
+export function MediaDetailModal({ msg, charName, userName, onClose }: { msg: ChatMessage; charName?: string; userName?: string; onClose: () => void }) {
+    const [submitting, setSubmitting] = useState(false);
+    const [paymentError, setPaymentError] = useState("");
 
-    const openPromptEditor = useCallback(() => {
-        setPromptDraft(d?.label?.trim() || "");
-        setRetryError("");
-        setShowPromptEditor(true);
-    }, [d?.label]);
-
-    const handleRetry = useCallback(() => {
-        const nextDescription = promptDraft.trim();
-        if (!nextDescription) {
-            setRetryError("提示词不能为空");
-            return;
-        }
-        setShowPromptEditor(false);
-        setRegenerating(true);
-        setRetryError("");
-        retryChatGeneratedImage(msg, characterId, nextDescription)
-            .then(updated => {
-                onUpdate?.(updated);
-            })
-            .catch(error => {
-                setRetryError(error instanceof Error ? error.message : String(error));
-            })
-            .finally(() => {
-                setRegenerating(false);
-            });
-    }, [characterId, msg, onUpdate, promptDraft]);
-
-    if (resolvedUrl) {
-        return (
-            <div className="chat-photo-card chat-photo-card--image rounded-none">
-                <img
-                    src={resolvedUrl}
-                    alt={label}
-                    className="chat-photo-card-image block max-w-[240px] max-h-[320px] w-auto h-auto"
-                />
-            </div>
-        );
-    }
-    // media-store 引用解析中：占个位，避免闪一下重试卡
-    if (isMediaStoreRef(rawUrl) && !refExpired) {
-        return <div className="chat-photo-card w-[180px] aspect-square rounded-none" />;
-    }
-    if (isPending) {
-        return (
-            <div className="chat-photo-card chat-photo-card--pending w-[180px] aspect-square rounded-none">
-                <div className="chat-photo-card-pending-inner">
-                    <div className="chat-photo-card-loader" aria-hidden="true">
-                        <span className="chat-photo-card-loader-orbit" />
-                        <span className="chat-photo-card-loader-core" />
-                    </div>
-                    <div className="chat-photo-card-pending-text">图片接收中...</div>
-                </div>
-            </div>
-        );
-    }
-    return (
-        <div className="chat-generated-image-retry-stack">
-            <div className="chat-generated-image-retry-wrap" data-action-placement={msg.role === "user" ? "left" : "right"}>
-                <div className="chat-photo-card w-[180px] aspect-square rounded-none">
-                    <div className="chat-photo-card-placeholder w-full h-full flex items-center justify-center px-5">
-                        <div className="chat-photo-card-text">{label}</div>
-                    </div>
-                </div>
-                {canRetry && (
-                    <button
-                        type="button"
-                        className="chat-generated-image-retry-btn"
-                        disabled={regenerating}
-                        aria-label="重新生成图片"
-                        onPointerDown={e => e.stopPropagation()}
-                        onClick={e => {
-                            e.stopPropagation();
-                            openPromptEditor();
-                        }}
-                    >
-                        <RefreshCw size={14} className={regenerating ? "is-spinning" : undefined} />
-                    </button>
-                )}
-            </div>
-            {retryError && <div className="chat-generated-image-retry-error">生成失败：{retryError}</div>}
-            {showPromptEditor && typeof document !== "undefined" && createPortal(
-                <GeneratedImagePromptDialog
-                    value={promptDraft}
-                    onChange={setPromptDraft}
-                    onConfirm={handleRetry}
-                    onCancel={() => setShowPromptEditor(false)}
-                    busy={regenerating}
-                    error={retryError}
-                />,
-                document.body,
-            )}
-        </div>
-    );
-}
-
-// ── Location ─────────────────────────────
-
-function LocationBubble({ msg }: { msg: ChatMessage }) {
-    const d = msg.mediaData;
-    return (
-        <div
-            className="chat-location-card w-[220px] rounded-xl overflow-hidden"
-        >
-            <div
-                className="chat-location-map w-full h-[100px] flex items-center justify-center relative ui-map-gradient"
-            >
-                {/* Grid pattern for map feel */}
-                <div
-                    className="absolute inset-0 opacity-15 ui-map-grid"
-                />
-                <div className="ts-36 relative z-[1]">📍</div>
-            </div>
-            <div className="chat-location-label px-3 py-2.5 bg-[var(--c-input)] flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                </svg>
-                <span className="ts-13 text-[var(--c-text)] font-medium">
-                    {d?.label || "位置"}
-                </span>
-            </div>
-        </div>
-    );
-}
-
-// ── Poke ─────────────────────────────
-
-// 骰子点位：3x3 宫格（0-8）中每个点数要点亮的格子
-const DICE_BUBBLE_PIPS: Record<number, number[]> = {
-    1: [4],
-    2: [0, 8],
-    3: [0, 4, 8],
-    4: [0, 2, 6, 8],
-    5: [0, 2, 4, 6, 8],
-    6: [0, 2, 3, 5, 6, 8],
-};
-
-// 让指定点数朝向屏幕所需的立方体末态旋转（配合各面的摆放变换）
-const DICE_BUBBLE_ORIENTATIONS: Record<number, [number, number]> = {
-    1: [0, 0],
-    2: [-90, 0],
-    3: [0, -90],
-    4: [0, 90],
-    5: [90, 0],
-    6: [0, 180],
-};
-
-/** 骰子消息：3D 实骰。新消息立方体翻滚约 1.4 秒后定格在掷出的点数；历史消息直接定格 */
-function DiceBubble({ msg }: { msg: ChatMessage }) {
-    const face = Math.min(6, Math.max(1, Number(msg.mediaData?.diceFace) || 1));
-    // 挂载瞬间判定一次：只有刚发出的消息播翻滚动画
-    const rollingRef = useRef(Date.now() - new Date(msg.createdAt).getTime() < 6000);
-    const [rx, ry] = DICE_BUBBLE_ORIENTATIONS[face];
-
-    return (
-        <div className="dice-bubble3d" aria-label={`骰子 ${face} 点`}>
-            <div className="dice-bubble3d-tilt">
-                <div
-                    className="dice-bubble3d-cube"
-                    {...(rollingRef.current ? { "data-rolling": "" } : {})}
-                    style={{ "--dice-rx": `${rx}deg`, "--dice-ry": `${ry}deg` } as React.CSSProperties}
-                >
-                    {[1, 2, 3, 4, 5, 6].map(f => (
-                        <span key={f} className="dice-bubble3d-face" data-face={f}>
-                            {Array.from({ length: 9 }, (_, cell) => (
-                                <span
-                                    key={cell}
-                                    className="dice-bubble3d-pip"
-                                    {...(DICE_BUBBLE_PIPS[f].includes(cell) ? { "data-on": "" } : {})}
-                                />
-                            ))}
-                        </span>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function PokeBubble({ msg, charName, userName }: { msg: ChatMessage; charName?: string; userName?: string }) {
-    // Prefer mediaData fields (group chat aware), fallback to old role-based logic
-    const sender = msg.mediaData?.pokeSender || (msg.role === "user" ? (userName || "你") : (charName || "对方"));
-    const target = msg.mediaData?.pokeTarget || (msg.role === "user" ? (charName || "对方") : (userName || "你"));
-    // Replace user's own name with "你" for display
-    const displaySender = sender === userName ? "你" : sender;
-    const displayTarget = target === userName ? "你" : target;
-    return (
-        <div
-            className="chat-sys-msg ts-12 mx-auto text-center"
-        >
-            {displaySender} 拍了拍 {displayTarget}
-        </div>
-    );
-}
-
-// ── Sticker ─────────────────────────────
-
-// In-memory cache: assetId/name → resolved URL (survives re-renders, cleared on page reload)
-const _stickerUrlCache = new Map<string, string>();
-
-/** Pre-populate sticker cache for a character. Call before rendering messages. */
-export async function prewarmStickerCache(characterId: string): Promise<void> {
-    const { resolveCustomStickerMap } = await import("@/lib/custom-sticker-storage");
-    const map = await resolveCustomStickerMap(characterId);
-    for (const [name, url] of Object.entries(map)) {
-        _stickerUrlCache.set(`${characterId}:${name}`, url);
-    }
-}
-
-function StickerBubble({ msg, characterId }: { msg: ChatMessage; characterId?: string }) {
-    const d = msg.mediaData;
-    const label = d?.label || "";
-
-    // Check pre-resolved URL or memory cache first
-    const cacheKey = `${characterId || ""}:${label}`;
-    const cachedUrl = d?.stickerUrl || _stickerUrlCache.get(cacheKey);
-    const [resolvedUrl, setResolvedUrl] = useState<string | null>(cachedUrl || null);
-
-    useEffect(() => {
-        if (resolvedUrl || d?.stickerUrl || !label || !characterId) return;
-        const custom = findCustomStickerByName(characterId, label);
-        if (!custom) return;
-        if (custom.externalUrl) {
-            _stickerUrlCache.set(cacheKey, custom.externalUrl);
-            setResolvedUrl(custom.externalUrl);
-            return;
-        }
-        if (!custom.assetId) return;
-        // Check cache
-        const cached = _stickerUrlCache.get(cacheKey);
-        if (cached) { setResolvedUrl(cached); return; }
-        // Only hit IndexedDB once, then cache
-        let cancelled = false;
-        resolveCustomStickerUrl(custom.assetId).then(url => {
-            if (!cancelled && url) {
-                _stickerUrlCache.set(cacheKey, url);
-                setResolvedUrl(url);
-            }
-        });
-        return () => { cancelled = true; };
-    }, [label, characterId, d?.stickerUrl]);
-
-    const imgUrl = d?.stickerUrl || resolvedUrl;
-    if (imgUrl) {
-        return (
-            <div className="chat-sticker chat-sticker-image sticker-bounce p-1">
-                <img
-                    src={imgUrl}
-                    alt={label || "表情包"}
-                    className="w-[120px] h-[120px] object-contain"
-                    style={{ WebkitTouchCallout: 'none', userSelect: 'none', pointerEvents: 'none' }}
-                />
-            </div>
-        );
-    }
-    // 2. Fallback: look up emoji from built-in sticker data
-    const matched = label ? findStickerByName(label) : undefined;
-    if (matched?.emoji) {
-        return (
-            <div className="chat-sticker chat-sticker-emoji sticker-bounce px-4 py-3 ts-48 text-center leading-none">
-                {matched.emoji}
-            </div>
-        );
-    }
-    // 3. No match — show label as styled tag
-    return (
-        <div className="chat-sticker chat-sticker-fallback px-4 py-2 ts-14 text-[var(--c-text)] bg-black/5 rounded-lg text-center">
-            [{label || "表情包"}]
-        </div>
-    );
-}
-
-// ── Quote ─────────────────────────────
-
-function QuoteBubble({ msg, displayContent, defaultTranslationExpanded = false }: { msg: ChatMessage; displayContent?: string; defaultTranslationExpanded?: boolean }) {
-    const d = msg.mediaData;
-    return (
-        <div className="chat-quote-message max-w-full">
-            {d?.quotePreview && (
-                <div className="chat-quote-preview bg-black/[0.06] border-l-[3px] border-l-black/15 px-2.5 py-1.5 ts-12 text-[var(--c-icon)] mb-1.5 rounded-r-[6px] truncate max-w-full">
-                    {d.quotePreview}
-                </div>
-            )}
-            {msg.content && <TextBubble content={displayContent ?? msg.content} defaultTranslationExpanded={defaultTranslationExpanded} />}
-        </div>
-    );
-}
-
-
-// ── Media Detail Modal (red packet / transfer) ─────────────────────────────
-
-interface MediaDetailModalProps {
-    msg: ChatMessage;
-    userName: string;
-    groupSize?: number;
-    onAccept: (updatedMsg: ChatMessage, sysText: string, actionType: string) => void;
-    onClose: () => void;
-}
-
-export function MediaDetailModal({ msg, userName, groupSize, onAccept, onClose }: MediaDetailModalProps) {
     const d = msg.mediaData;
     const isRedPacket = msg.mediaType === "red_packet";
     const isTransfer = msg.mediaType === "transfer";
     const isPaymentRequest = msg.mediaType === "payment_request";
-    const [paymentError, setPaymentError] = useState("");
-    if (!isRedPacket && !isTransfer && !isPaymentRequest) return null;
 
-    const isFromUser = msg.role === "user";
-    const senderDisplay = isFromUser ? userName : (d?.senderName || msg.senderName || "对方");
+    const senderDisplay = msg.role === "user" ? (userName || "你") : (charName || "对方");
 
-    // ── Red packet state ──
+    // Red packet logic
     const claimedBy = d?.claimedBy || [];
     const claimedAmounts = d?.claimedAmounts || {};
     const totalRecipients = d?.count || 1;
-    const allClaimed = d?.status === "opened" || claimedBy.length >= totalRecipients;
-    const alreadyClaimed = claimedBy.includes(userName);
-    const userShare = claimedAmounts[userName];
     const isDeclined = d?.status === "declined";
-    const isReceived = d?.status === "received";
-    const isPaid = d?.status === "paid";
+    const canClaimRedPacket = isRedPacket && !isDeclined && d?.status !== "opened" && claimedBy.length < totalRecipients && msg.role !== "user" && userName && !claimedBy.includes(userName);
 
-    // ── Transfer state ──
-    const isRecipient = !d?.recipientName || d.recipientName === userName;
-    const transferDone = isReceived || isDeclined;
-    const paymentDone = isPaid || isDeclined || d?.status === "canceled";
-
-    // Can user act?
-    const canClaimRedPacket = isRedPacket && !isFromUser && !allClaimed && !isDeclined && !alreadyClaimed;
-    const canActTransfer = isTransfer && !isFromUser && !transferDone && isRecipient;
-    const canActPaymentRequest = isPaymentRequest && !isFromUser && !paymentDone;
-
-    // 拼手气：随机分配（二倍均值法）
-    const calcShare = (): number => {
-        const total = d?.amount || 0;
-        const claimedTotal = Object.values(claimedAmounts).reduce((s, v) => s + v, 0);
-        const remaining = total - claimedTotal;
-        const leftCount = totalRecipients - claimedBy.length;
-        if (leftCount <= 1) return Math.round(remaining * 100) / 100;
-        const max = (remaining / leftCount) * 2;
-        const share = Math.max(0.01, Math.random() * max);
-        return Math.round(Math.min(share, remaining - 0.01 * (leftCount - 1)) * 100) / 100;
-    };
-
-    const handleRedPacketAccept = () => {
-        const share = totalRecipients > 1 ? calcShare() : (d?.amount || 0);
+    const handleRedPacketAccept = async () => {
+        if (!userName || submitting) return;
+        setSubmitting(true);
+        const amount = typeof d?.amount === "number" && Number.isFinite(d.amount) ? d.amount : 0;
         const newClaimedBy = [...claimedBy, userName];
-        const newClaimedAmounts = { ...claimedAmounts, [userName]: share };
-        const newAllClaimed = newClaimedBy.length >= totalRecipients;
-        const newStatus = newAllClaimed ? "opened" as const : "pending" as const;
-        const updatedData = { ...d, status: newStatus, claimedBy: newClaimedBy, claimedAmounts: newClaimedAmounts };
-        updateMessageMediaData(msg.id, updatedData);
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}领取了${senderDisplay}的红包，金额:${share}元`, "accept_red_packet");
-    };
-
-    const handleRedPacketDecline = () => {
-        const updatedData = { ...d, status: "declined" as const };
-        updateMessageMediaStatus(msg.id, "declined");
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}退回了${senderDisplay}的红包`, "decline_red_packet");
-    };
-
-    const handleTransferAccept = () => {
-        updateMessageMediaStatus(msg.id, "received");
-        const updatedData = { ...d, status: "received" as const };
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}领取了${senderDisplay}的转账`, "accept_transfer");
-    };
-
-    const handleTransferDecline = () => {
-        updateMessageMediaStatus(msg.id, "declined");
-        const updatedData = { ...d, status: "declined" as const };
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}拒收了${senderDisplay}的转账`, "decline_transfer");
-    };
-
-    const handlePaymentRequestAccept = () => {
-        const amount = Number(d?.amount ?? d?.paymentRequestAmountLabel ?? 0);
-        const safeAmount = Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100) / 100) : 0;
-        if (safeAmount <= 0) {
-            setPaymentError("金额无效，无法代付。");
-            return;
-        }
-        const result = payWithWalletBalance({
-            amount: safeAmount,
-            title: "代付",
-            detail: formatShoppingPaymentRequestHistory({
-                amount: safeAmount,
-                amountLabel: d?.paymentRequestAmountLabel,
-                items: d?.paymentRequestItems,
-                itemsText: d?.paymentRequestItemsText,
-            }),
-            category: "代付",
-            relatedOrderId: d?.shoppingOrderId,
+        const newClaimedAmounts = { ...claimedAmounts, [userName]: amount };
+        const newStatus = newClaimedBy.length >= totalRecipients ? "opened" : "unopened";
+        await updateMessageMediaData(msg.id, {
+            ...d,
+            claimedBy: newClaimedBy,
+            claimedAmounts: newClaimedAmounts,
+            status: newStatus,
         });
-        if (!result.ok || !result.transaction) {
-            setPaymentError(result.error ?? "余额不足，无法代付。");
-            return;
+        await updateMessageMediaStatus(msg.id, newStatus);
+        onClose();
+    };
+    const handleRedPacketDecline = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        await updateMessageMediaData(msg.id, { ...d, status: "declined" });
+        await updateMessageMediaStatus(msg.id, "declined");
+        onClose();
+    };
+
+    // Transfer logic
+    const canActTransfer = isTransfer && d?.status === "unopened" && msg.role !== "user";
+    const handleTransferAccept = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        await updateMessageMediaData(msg.id, { ...d, status: "received" });
+        await updateMessageMediaStatus(msg.id, "received");
+        onClose();
+    };
+    const handleTransferDecline = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        await updateMessageMediaData(msg.id, { ...d, status: "declined" });
+        await updateMessageMediaStatus(msg.id, "declined");
+        onClose();
+    };
+
+    // Payment request logic
+    const canActPaymentRequest = isPaymentRequest && d?.status === "unpaid" && msg.role !== "user";
+    const handlePaymentRequestAccept = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        setPaymentError("");
+        try {
+            const amount = typeof d?.amount === "number" && Number.isFinite(d.amount) ? d.amount : 0;
+            // 真实扣款逻辑
+            await payWithWalletBalance(amount, \`代付：\${d?.label || "订单"}\`);
+
+            // 更新消息状态
+            await updateMessageMediaData(msg.id, { ...d, status: "paid" });
+            await updateMessageMediaStatus(msg.id, "paid");
+
+            // 同步更新订单历史状态
+            if (d?.paymentRequestId) {
+                const history = await formatShoppingPaymentRequestHistory();
+                await history.updateStatus(d.paymentRequestId, "paid");
+            }
+
+            // 触发自定义事件通知聊天线程
+            window.dispatchEvent(new CustomEvent("payment_request_resolved", {
+                detail: {
+                    messageId: msg.id,
+                    sessionId: msg.sessionId,
+                    paymentRequestId: d?.paymentRequestId,
+                    action: "paid",
+                    label: d?.label,
+                    amount: amount
+                }
+            }));
+
+            onClose();
+        } catch (err: any) {
+            setPaymentError(err.message || String(err));
+            setSubmitting(false); // 允许重试或拒绝
         }
-        const updatedData = {
-            ...d,
-            status: "paid" as const,
-            paymentResolvedAt: new Date().toISOString(),
-            paymentPayerName: userName,
-            paymentWalletTransactionId: result.transaction.id,
-        };
-        updateMessageMediaData(msg.id, updatedData);
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}接受了${senderDisplay}的代付请求`, "accept_payment_request");
+    };
+    const handlePaymentRequestDecline = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        await updateMessageMediaData(msg.id, { ...d, status: "declined" });
+        await updateMessageMediaStatus(msg.id, "declined");
+
+        // 同步更新订单历史状态
+        if (d?.paymentRequestId) {
+            const history = await formatShoppingPaymentRequestHistory();
+            await history.updateStatus(d.paymentRequestId, "cancelled");
+        }
+
+        // 触发自定义事件通知聊天线程
+        window.dispatchEvent(new CustomEvent("payment_request_resolved", {
+            detail: {
+                messageId: msg.id,
+                sessionId: msg.sessionId,
+                paymentRequestId: d?.paymentRequestId,
+                action: "declined"
+            }
+        }));
+
+        onClose();
     };
 
-    const handlePaymentRequestDecline = () => {
-        const updatedData = {
-            ...d,
-            status: "declined" as const,
-            paymentResolvedAt: new Date().toISOString(),
-            paymentPayerName: userName,
-        };
-        updateMessageMediaData(msg.id, updatedData);
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}拒绝了${senderDisplay}的代付请求`, "decline_payment_request");
-    };
+    const gradientClass = isRedPacket
+        ? (isDeclined ? "bg-declined-gradient" : "bg-redpacket-gradient")
+        : isTransfer
+            ? (d?.status === "declined" ? "bg-declined-gradient" : "bg-transfer-gradient")
+            : (d?.status === "declined" ? "bg-declined-gradient" : "bg-payment-req-gradient");
 
-    // Gradient class
-    const gradientClass = isRedPacket ? "bg-redpacket-gradient" : isTransfer ? "bg-transfer-gradient" : "bg-transfer-gradient";
-
-    // Status label
     let statusText = "";
     if (isRedPacket) {
         if (isDeclined) statusText = "已退回";
-        else if (alreadyClaimed && userShare != null) statusText = `你领取了 ¥${userShare.toFixed(2)}`;
-        else if (allClaimed) statusText = "红包已领完";
-        else if (isFromUser) statusText = "你发出的红包";
-    } else {
-        if (isTransfer) {
-            if (isReceived) statusText = "已收款";
-            else if (isDeclined) statusText = "已退回";
-            else if (isFromUser) statusText = "你发出的转账";
-            else if (!isRecipient) statusText = `转给 ${d?.recipientName}`;
-        } else if (isPaymentRequest) {
-            if (isPaid) statusText = "已代付";
-            else if (isDeclined) statusText = "已拒绝";
-            else if (isFromUser) statusText = "你发出的代付请求";
-        }
+        else if (claimedBy.length >= totalRecipients) statusText = "已领完";
+        else if (userName && claimedBy.includes(userName)) statusText = "已领取";
+    } else if (isTransfer) {
+        if (d?.status === "declined") statusText = "已退回";
+        else if (d?.status === "received") statusText = "已接收";
+        else if (msg.role === "user") statusText = "等待对方接收";
+    } else if (isPaymentRequest) {
+        if (d?.status === "declined") statusText = "已拒绝";
+        else if (d?.status === "paid") statusText = "已代付";
+        else if (msg.role === "user") statusText = "等待对方代付";
     }
 
     const paymentItemsText = d?.paymentRequestItemsText || (d?.paymentRequestItems || [])
-        .map(item => `${item.title}/${item.detail}/${item.priceLabel}/${item.quantityLabel}`)
+        .map(item => \`\${item.title}/\${item.detail}/\${item.priceLabel}/\${item.quantityLabel}\`)
         .join("; ");
     const modalAmountText = typeof d?.amount === "number" && Number.isFinite(d.amount)
         ? d.amount.toFixed(2)
@@ -1711,7 +1284,7 @@ export function MediaDetailModal({ msg, userName, groupSize, onAccept, onClose }
         <div className="modal-overlay" onClick={onClose}>
             <div className="media-modal" onClick={(e) => e.stopPropagation()}>
                 {/* Header with gradient */}
-                <div className={`media-modal-header ${gradientClass}`}>
+                <div className={\`media-modal-header \${gradientClass}\`}>
                     <div className="media-modal-emoji">{isRedPacket ? "🧧" : isTransfer ? "💰" : "🧾"}</div>
                     <div className="media-modal-amount">¥{modalAmountText}</div>
                     <div className="media-modal-label">
@@ -1857,9 +1430,9 @@ function MediaSaveButton({ url, filename }: { url: string; filename: string }) {
 const DEFAULT_EXT: Record<string, string> = { audio: ".mp3", image: ".png", video: ".mp4", file: ".bin" };
 
 function ensureExtension(name: string, fileType: string): string {
-    if (!name) return `file${DEFAULT_EXT[fileType] || ""}`;
-    if (/\.\w{2,5}$/.test(name)) return name;
-    return `${name}${DEFAULT_EXT[fileType] || ""}`;
+    if (!name) return \`file\${DEFAULT_EXT[fileType] || ""}\`;
+    if (/\\.\\w{2,5}$/.test(name)) return name;
+    return \`\${name}\${DEFAULT_EXT[fileType] || ""}\`;
 }
 
 function MediaFileBubble({
@@ -1982,7 +1555,7 @@ function MediaFileBubble({
     const formatTime = (s: number) => {
         const m = Math.floor(s / 60);
         const sec = Math.floor(s % 60);
-        return `${m}:${sec.toString().padStart(2, "0")}`;
+        return \`\${m}:\${sec.toString().padStart(2, "0")}\`;
     };
 
     if (fileType === "audio" && url) {
@@ -2010,12 +1583,12 @@ function MediaFileBubble({
                         <div className="chat-media-file-info">
                             <div className="chat-media-file-title">{title}</div>
                             <div className="chat-media-file-time">
-                                {duration > 0 ? `${formatTime(progress * duration)} / ${formatTime(duration)}` : "加载中..."}
+                                {duration > 0 ? \`\${formatTime(progress * duration)} / \${formatTime(duration)}\` : "加载中..."}
                             </div>
                         </div>
                     </div>
                     <div className="chat-media-file-progress" onClick={handleSeek}>
-                        <div className="chat-media-file-progress-fill" style={{ width: `${progress * 100}%` }} />
+                        <div className="chat-media-file-progress-fill" style={{ width: \`\${progress * 100}%\` }} />
                     </div>
                 </div>
                 <MediaSaveButton url={url} filename={ensureExtension(title, "audio")} />
@@ -2157,7 +1730,7 @@ function XiaohongshuShareBubble({ msg }: { msg: ChatMessage }) {
                 <span>{data?.xiaohongshuNoteType === "video" ? "视频帖子" : "小红书帖子"}</span>
             </div>
             <div className="chat-xhs-share-body">
-                <div className={`chat-xhs-share-cover chat-xhs-share-cover--${data?.xiaohongshuTone || "blush"}`}>
+                <div className={\`chat-xhs-share-cover chat-xhs-share-cover--\${data?.xiaohongshuTone || "blush"}\`}>
                     {imageUrl ? <img src={imageUrl} alt="" /> : <span>{coverIcon}</span>}
                 </div>
                 <div className="chat-xhs-share-info">
@@ -2179,6 +1752,7 @@ function XiaohongshuShareBubble({ msg }: { msg: ChatMessage }) {
 function VoiceMessageBubble({ msg, characterId, onUpdate, defaultTranslationExpanded = false }: { msg: ChatMessage; characterId?: string; onUpdate?: (m: ChatMessage) => void; defaultTranslationExpanded?: boolean }) {
     const [playing, setPlaying] = useState(false);
     const [synthesizing, setSynthesizing] = useState(false);
+    const [showText, setShowText] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const text = msg.mediaData?.label || "语音消息";
     const bilingual = splitBilingualText(text);
@@ -2218,7 +1792,8 @@ function VoiceMessageBubble({ msg, characterId, onUpdate, defaultTranslationExpa
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [msg.id, msg.mediaUrl, msg.mediaData, characterId, needsResynthesis, speechText]);
 
-    const handlePlay = () => {
+    const handlePlay = (e: React.MouseEvent) => {
+        e.stopPropagation();
         if (synthesizing || needsResynthesis) return;
         if (playing && audioRef.current) {
             const active = audioRef.current;
@@ -2255,31 +1830,43 @@ function VoiceMessageBubble({ msg, characterId, onUpdate, defaultTranslationExpa
         return Math.max(6, Math.round(15 - dist * 2.2));
     });
 
+    const toggleText = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setShowText(v => !v);
+    };
+
     return (
-        <div className="voice-msg-bubble" onClick={handlePlay}
-            style={{ minWidth: `${Math.min(60 + duration * 8, 220)}px` }}
-        >
-            <div className="voice-msg-icon-shell">
-                <div className="voice-msg-icon">
-                {synthesizing ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" /></svg>
-                ) : playing ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-                ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="voice-msg-bubble" onClick={toggleText}
+                style={{ minWidth: \`\${Math.min(60 + duration * 8, 220)}px\`, cursor: "pointer" }}
+            >
+                <div className="voice-msg-icon-shell" onClick={handlePlay} role="button" tabIndex={0} style={{ cursor: "pointer" }}>
+                    <div className="voice-msg-icon">
+                    {synthesizing ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" /></svg>
+                    ) : playing ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+                    ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                    )}
+                    </div>
                 </div>
+                <div className="voice-msg-bars" {...(playing ? { "data-playing": "" } : {})}>
+                    {barHeights.map((height, i) => (
+                        <div
+                            key={i}
+                            className="voice-msg-bar"
+                            style={{ height: \`\${height}px\`, animationDelay: \`\${i * 0.08}s\` }}
+                        />
+                    ))}
+                </div>
+                <span className="voice-msg-dur">{duration}&quot;</span>
             </div>
-            <div className="voice-msg-bars" {...(playing ? { "data-playing": "" } : {})}>
-                {barHeights.map((height, i) => (
-                    <div
-                        key={i}
-                        className="voice-msg-bar"
-                        style={{ height: `${height}px`, animationDelay: `${i * 0.08}s` }}
-                    />
-                ))}
-            </div>
-            <span className="voice-msg-dur">{duration}&quot;</span>
+            {showText && (
+                <div className="bubble bubble-text" style={{ marginTop: 2, padding: "8px 12px", fontSize: "0.95em", opacity: 0.9 }}>
+                    <TextBubble content={speechText} defaultTranslationExpanded={defaultTranslationExpanded} />
+                </div>
+            )}
         </div>
     );
 }
